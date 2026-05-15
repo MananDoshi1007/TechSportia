@@ -8,6 +8,14 @@ import { teamAPI, userAPI, sportAPI } from "../../api/api";
 import { useToast } from "../../context/ToastContext";
 import { Users, UserPlus, Trash2, Search, Trophy, CheckCircle2, ChevronLeft, Clock } from "lucide-react";
 
+const getErrorMessage = (err, fallback) => {
+  const data = err?.response?.data;
+  if (typeof data === "string") return data;
+  if (data?.message) return data.message;
+  if (data?.title) return data.title;
+  return fallback;
+};
+
 export default function RegisterTeam() {
   const { sportId } = useParams();
   const navigate = useNavigate();
@@ -84,16 +92,22 @@ export default function RegisterTeam() {
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();
-    if (!teamName) return;
+    const cleanTeamName = teamName.trim();
+    if (!cleanTeamName) {
+      showToast("Team name is required.", "warning");
+      return;
+    }
+
     try {
       setLoading(true);
-      const res = await teamAPI.create(teamName, sportId);
+      const res = await teamAPI.create(cleanTeamName, sportId);
       showToast("Team created as draft! You are now the Captain.", "success");
+      setTeamName(cleanTeamName);
       setIsCreated(true);
       setTeamId(res.data.teamId);
       setMembers([{ userId: 'me', name: 'You (Captain)', role: 'Captain', fullName: 'You (Captain)' }]);
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to create team.", "error");
+      showToast(getErrorMessage(err, "Failed to create team."), "error");
     } finally {
       setLoading(false);
     }
@@ -122,6 +136,18 @@ export default function RegisterTeam() {
       showToast("Team is full!", "warning");
       return;
     }
+
+    const newMemberName = (user.name || user.fullName || "").trim().toLowerCase();
+    if (members.some(m => String(m.userId) === String(user.userId))) {
+      showToast("This player is already in the team.", "warning");
+      return;
+    }
+
+    if (newMemberName && members.some(m => (m.name || m.fullName || "").trim().toLowerCase() === newMemberName)) {
+      showToast("A player with this name is already in the team.", "warning");
+      return;
+    }
+
     try {
       await teamAPI.addMember(teamId, user.userId);
       setMembers([...members, { ...user, role: 'Player' }]);
@@ -129,7 +155,7 @@ export default function RegisterTeam() {
       setSearchResults([]);
       showToast(`${user.name} added to roster.`, "success");
     } catch (err) {
-      showToast(err.response?.data?.message || "Could not add member.", "error");
+      showToast(getErrorMessage(err, "Could not add member."), "error");
     }
   };
 
@@ -150,7 +176,7 @@ export default function RegisterTeam() {
       showToast("Team registered successfully! Organizer will review it.", "success");
       navigate("/dashboard");
     } catch (err) {
-      showToast(err.response?.data?.message || "Registration failed.", "error");
+      showToast(getErrorMessage(err, "Registration failed."), "error");
     } finally {
       setRegistering(false);
     }

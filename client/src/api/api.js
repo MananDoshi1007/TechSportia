@@ -56,7 +56,7 @@ export const sportAPI = {
 };
 
 export const teamAPI = {
-  create: (name, sportId) => API.post(`/Team?teamName=${name}&sportId=${sportId}`),
+  create: (name, sportId) => API.post(`/Team?teamName=${encodeURIComponent(name)}&sportId=${sportId}`),
   getById: (id) => API.get(`/Team/${id}`),
   withdraw: (teamId) => API.put(`/Team/withdraw/${teamId}`),
   getMyTeamBySport: (sportId) => API.get(`/Team/sport/${sportId}/my`),

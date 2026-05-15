@@ -20,6 +20,10 @@ public class TeamController : ControllerBase
     [Authorize(Roles = "Player")]
     public async Task<IActionResult> Create(string teamName, int sportId)
     {
+        var cleanTeamName = teamName?.Trim();
+        if (string.IsNullOrWhiteSpace(cleanTeamName))
+            return BadRequest(new { message = "Team name is required." });
+
         var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userIdString)) return Unauthorized();
 
@@ -33,6 +37,17 @@ public class TeamController : ControllerBase
 
         if (sport == null || sport.Event == null)
             return BadRequest("Invalid sport");
+
+        var normalizedTeamName = cleanTeamName.ToLower();
+        var teamNameExists = await _context.Teams.AnyAsync(t =>
+            t.TeamName != null &&
+            t.TeamName.ToLower() == normalizedTeamName &&
+            t.Sport != null &&
+            t.Sport.Event != null &&
+            t.Sport.Event.CollegeId == sport.Event.CollegeId);
+
+        if (teamNameExists)
+            return BadRequest(new { message = "A team with this name already exists in your college." });
 
         if (sport.Event.Status != "RegistrationOpen")
             return BadRequest("Registration is not open for this event");
@@ -82,7 +97,7 @@ public class TeamController : ControllerBase
 
         var team = new Team
         {
-            TeamName = teamName,
+            TeamName = cleanTeamName,
             SportId = sportId,
             IsDraft = true, // 🔹 Start as DRAFT
             IsApproved = null,
@@ -119,6 +134,7 @@ public class TeamController : ControllerBase
             .Include(t => t.Sport)
             .ThenInclude(s => s.Event)
             .Include(t => t.TeamMembers)
+            .ThenInclude(tm => tm.User)
             .FirstOrDefaultAsync(t => t.TeamId == teamId);
 
         var user = await _context.Users.FindAsync(userId);
@@ -168,6 +184,14 @@ public class TeamController : ControllerBase
 
         if (team.TeamMembers.Any(m => m.UserId == userId))
             return BadRequest("User already in this team");
+
+        var duplicateName = team.TeamMembers.Any(m =>
+            !string.IsNullOrWhiteSpace(m.User?.FullName) &&
+            !string.IsNullOrWhiteSpace(user.FullName) &&
+            string.Equals(m.User.FullName.Trim(), user.FullName.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (duplicateName)
+            return BadRequest("A player with this name is already in the team.");
 
         var existsInSameSport = await _context.TeamMembers
             .AnyAsync(tm => tm.UserId == userId && tm.Team.SportId == team.SportId);
