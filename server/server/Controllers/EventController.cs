@@ -183,6 +183,21 @@ public class EventController : ControllerBase
         var user = await _context.Users.FindAsync(userId);
         
         if (user == null) return Unauthorized();
+        if (user.CollegeId == null)
+            return BadRequest(new { message = "Event must belong to a college." });
+
+        var eventName = dto.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(eventName))
+            return BadRequest(new { message = "Event name is required." });
+
+        var startDate = dto.StartDate.Date;
+        var endDate = dto.EndDate.Date;
+
+        if (startDate == endDate)
+            return BadRequest(new { message = "Event start date and end date cannot be the same." });
+
+        if (endDate <= startDate)
+            return BadRequest(new { message = "Event end date must be after start date." });
 
         // 🔹 7-EVENT LIMIT CHECK
         var activeStatus = new[] { "Draft", "Upcoming", "RegistrationOpen", "Ongoing" };
@@ -194,16 +209,37 @@ public class EventController : ControllerBase
             return BadRequest(new { message = "Limit reached: A college can only have maximum 7 active events at a time. Please complete existing events first." });
 
         // 🔹 UNIQUE NAME CHECK
-        var nameExists = await _context.Events.AnyAsync(e => e.Name == dto.Name);
+        var normalizedName = eventName.ToLower();
+        var nameExists = await _context.Events.AnyAsync(e =>
+            e.CollegeId == user.CollegeId &&
+            e.Name != null &&
+            e.Name.ToLower() == normalizedName);
         if (nameExists)
-            return BadRequest(new { message = "An event with this name already exists. Please choose a unique name." });
+            return BadRequest(new { message = "An event with this name already exists in your college." });
+
+        var existingEvents = await _context.Events
+            .Where(e => e.CollegeId == user.CollegeId && e.StartDate != null && e.EndDate != null)
+            .Select(e => new { e.Name, e.StartDate, e.EndDate })
+            .ToListAsync();
+
+        var conflictingEvent = existingEvents.FirstOrDefault(e =>
+            startDate < e.EndDate!.Value.Date.AddDays(1) &&
+            endDate > e.StartDate!.Value.Date.AddDays(-1));
+
+        if (conflictingEvent != null)
+        {
+            return BadRequest(new
+            {
+                message = $"Event dates conflict with '{conflictingEvent.Name}'. Keep events non-overlapping and start the next event at least 1 day after the previous event ends."
+            });
+        }
 
         var newEvent = new Event
         {
-            Name = dto.Name,
+            Name = eventName,
             Description = dto.Description,
-            StartDate = dto.StartDate,
-            EndDate = dto.EndDate,
+            StartDate = startDate,
+            EndDate = endDate,
             MaxSports = dto.MaxSports,
             CollegeId = user.CollegeId, // Auto-assign to organizer's college
             Status = "Draft",

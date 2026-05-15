@@ -10,6 +10,14 @@ import { useToast } from "../../context/ToastContext";
 import Tooltip from "../../components/common/Tooltip";
 import { Building, Plus, Trash2, ShieldCheck, ShieldAlert, Mail, Phone, MapPin, User, Lock, Eye, EyeOff } from "lucide-react";
 
+const getErrorMessage = (err, fallback) => {
+  const data = err?.response?.data;
+  if (typeof data === "string") return data;
+  if (data?.message) return data.message;
+  if (data?.title) return data.title;
+  return fallback;
+};
+
 export default function ManageColleges() {
   const [colleges, setColleges] = useState([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -63,14 +71,51 @@ export default function ManageColleges() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+
+    const collegeName = newCollege.name.trim();
+    const officialEmail = newCollege.email.trim().toLowerCase();
+    const adminEmail = newCollege.adminEmail.trim().toLowerCase();
+
+    if (!collegeName || !officialEmail || !newCollege.adminName.trim() || !adminEmail || !newCollege.adminPassword.trim()) {
+      showToast("Please fill all required college and coordinator fields.", "warning");
+      return;
+    }
+
+    if (officialEmail === adminEmail) {
+      showToast("Official email and coordinator login email must be different.", "warning");
+      return;
+    }
+
+    if (colleges.some(c => c.name?.trim().toLowerCase() === collegeName.toLowerCase())) {
+      showToast("A college with this name already exists.", "warning");
+      return;
+    }
+
+    if (colleges.some(c => c.email?.trim().toLowerCase() === officialEmail)) {
+      showToast("College official email already exists.", "warning");
+      return;
+    }
+
+    if (colleges.some(c => c.email?.trim().toLowerCase() === adminEmail)) {
+      showToast("Coordinator login email is already used as a college official email.", "warning");
+      return;
+    }
+
     try {
-      await collegeAPI.create(newCollege);
+      await collegeAPI.create({
+        ...newCollege,
+        name: collegeName,
+        email: officialEmail,
+        adminName: newCollege.adminName.trim(),
+        adminEmail,
+        adminPassword: newCollege.adminPassword.trim()
+      });
       showToast("College & Coordinator created!", "success");
       setIsCreateModalOpen(false);
       setNewCollege({ name: "", email: "", contactNumber: "", address: "", adminName: "", adminEmail: "", adminPassword: "" });
       fetchColleges();
-    } catch {
-      showToast("Failed to create college. Ensure emails are unique.", "error");
+    } catch (err) {
+      showToast(getErrorMessage(err, "Failed to create college. Ensure all names and emails are unique."), "error");
     }
   };
 

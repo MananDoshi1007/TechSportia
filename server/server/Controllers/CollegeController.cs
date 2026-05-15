@@ -70,19 +70,56 @@ public class CollegeController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
+        var collegeName = dto.Name?.Trim();
+        var officialEmail = dto.Email?.Trim().ToLower();
+        var adminName = dto.AdminName?.Trim();
+        var adminEmail = dto.AdminEmail?.Trim().ToLower();
+
+        if (string.IsNullOrWhiteSpace(collegeName))
+            return BadRequest(new { message = "College name is required." });
+
+        if (string.IsNullOrWhiteSpace(officialEmail))
+            return BadRequest(new { message = "Official email is required." });
+
+        if (string.IsNullOrWhiteSpace(adminName))
+            return BadRequest(new { message = "Coordinator name is required." });
+
+        if (string.IsNullOrWhiteSpace(adminEmail))
+            return BadRequest(new { message = "Coordinator login email is required." });
+
+        if (string.IsNullOrWhiteSpace(dto.AdminPassword))
+            return BadRequest(new { message = "Coordinator password is required." });
+
+        if (!officialEmail.Contains("@") || !adminEmail.Contains("@"))
+            return BadRequest(new { message = "Please enter valid email addresses." });
+
+        if (string.Equals(officialEmail, adminEmail, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Official email and coordinator login email must be different and unique." });
+
+        var normalizedCollegeName = collegeName.ToLower();
+
+        if (await _context.Colleges.AnyAsync(c => c.Name != null && c.Name.ToLower() == normalizedCollegeName))
+            return BadRequest(new { message = "A college with this name already exists." });
+
         // Check if college email exists
-        if (await _context.Colleges.AnyAsync(c => c.Email == dto.Email))
-            return BadRequest("College with this email already exists.");
+        if (await _context.Colleges.AnyAsync(c => c.Email != null && c.Email.ToLower() == officialEmail))
+            return BadRequest(new { message = "College with this official email already exists." });
+
+        if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == officialEmail))
+            return BadRequest(new { message = "Official email is already used by a user account." });
 
         // Check if admin email exists in Users table
-        if (await _context.Users.AnyAsync(u => u.Email == dto.AdminEmail))
-            return BadRequest("An account with the administrator email already exists.");
+        if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == adminEmail))
+            return BadRequest(new { message = "An account with the coordinator login email already exists." });
+
+        if (await _context.Colleges.AnyAsync(c => c.Email != null && c.Email.ToLower() == adminEmail))
+            return BadRequest(new { message = "Coordinator login email is already used as a college official email." });
 
         // 1. Create College
         var college = new College
         {
-            Name = dto.Name,
-            Email = dto.Email,
+            Name = collegeName,
+            Email = officialEmail,
             ContactNumber = dto.ContactNumber,
             Address = dto.Address,
             IsApproved = true,
@@ -95,9 +132,9 @@ public class CollegeController : ControllerBase
         // 2. Create Initial Organizer User
         var user = new User
         {
-            FullName = dto.AdminName,
-            Email = dto.AdminEmail,
-            Password = BCrypt.Net.BCrypt.HashPassword(dto.AdminPassword),
+            FullName = adminName,
+            Email = adminEmail,
+            Password = BCrypt.Net.BCrypt.HashPassword(dto.AdminPassword.Trim()),
             Role = "Organizer",
             CollegeId = college.CollegeId,
             IsActive = true,
@@ -110,7 +147,7 @@ public class CollegeController : ControllerBase
         return Ok(new { 
             message = "College and Coordinator account created successfully", 
             collegeId = college.CollegeId,
-            coordinatorEmail = dto.AdminEmail 
+            coordinatorEmail = adminEmail
         });
     }
 
