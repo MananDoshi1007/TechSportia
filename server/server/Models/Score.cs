@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace server.Models;
@@ -13,9 +13,9 @@ public partial class Score
 
     public int? TeamId { get; set; }
 
-    public double? Value { get; set; }
+    public int Points { get; set; }
 
-    public int? Rank { get; set; }
+    public DateTime? UpdateAt { get; set; }
 
     public virtual Sport? Sport { get; set; }
 

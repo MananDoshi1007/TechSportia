@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,6 +66,7 @@ public partial class TechsportiaDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(150)
                 .IsUnicode(false);
+            entity.HasIndex(e => e.Name).IsUnique();
             entity.Property(e => e.StartDate).HasColumnType("datetime");
             entity.Property(e => e.Status).HasMaxLength(50);
 
@@ -78,7 +79,6 @@ public partial class TechsportiaDbContext : DbContext
         {
             entity.HasKey(e => e.IndividualRegistrationId).HasName("PK__Individu__B7721C9C29572725");
 
-            entity.Property(e => e.IsApproved).HasDefaultValue(false);
             entity.Property(e => e.RegisteredAt)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime");
@@ -136,8 +136,14 @@ public partial class TechsportiaDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(100)
                 .IsUnicode(false);
+            
+            entity.HasIndex(e => new { e.Name, e.EventId }).IsUnique();
+            
             entity.Property(e => e.RegistrationEndDate).HasColumnType("datetime");
             entity.Property(e => e.RegistrationStartDate).HasColumnType("datetime");
+            entity.Property(e => e.StartDate).HasColumnType("datetime");
+            entity.Property(e => e.EndDate).HasColumnType("datetime");
+            entity.Property(e => e.StartTime).HasMaxLength(50);
             entity.Property(e => e.Type).HasMaxLength(50);
 
             entity.HasOne(d => d.Event).WithMany(p => p.Sports)
@@ -152,7 +158,9 @@ public partial class TechsportiaDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime");
-            entity.Property(e => e.IsApproved).HasDefaultValue(false);
+
+            entity.Property(e => e.IsDraft).HasDefaultValue(true);
+
 
             entity.HasOne(d => d.Sport).WithMany(p => p.Teams)
                 .HasForeignKey(d => d.SportId)

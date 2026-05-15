@@ -34,7 +34,14 @@ export default function Navbar({ onMenuClick }) {
       </button>
 
       {/* Search bar */}
-      <div style={{ flex: 1, maxWidth: 380 }}>
+      <form 
+        onSubmit={(e) => {
+          e.preventDefault();
+          const q = e.target.search.value;
+          if (q.trim()) navigate(`/events?q=${encodeURIComponent(q)}`);
+        }}
+        style={{ flex: 1, maxWidth: 380 }}
+      >
         <div style={{ position: "relative" }}>
           <span style={{
             position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
@@ -43,6 +50,7 @@ export default function Navbar({ onMenuClick }) {
             <Search size={16} />
           </span>
           <input
+            name="search"
             placeholder="Search events, sports…"
             className="input"
             style={{
@@ -51,7 +59,7 @@ export default function Navbar({ onMenuClick }) {
             }}
           />
         </div>
-      </div>
+      </form>
 
       <div style={{ flex: 1 }} />
 
@@ -103,19 +111,10 @@ export default function Navbar({ onMenuClick }) {
           <div style={{ display: "flex", gap: 12 }}>
             <button 
               onClick={() => navigate("/login")}
-              style={{ 
-                background: "transparent", border: "none", color: "var(--text-secondary)",
-                fontSize: 14, fontWeight: 600, cursor: "pointer"
-              }}
-            >
-              Log In
-            </button>
-            <button 
-              onClick={() => navigate("/register")}
               className="btn btn-primary"
               style={{ padding: "8px 20px", fontSize: 13 }}
             >
-              Get Started
+              Log In
             </button>
           </div>
         )}

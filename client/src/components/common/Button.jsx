@@ -1,4 +1,3 @@
-import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Button – White-label ready

@@ -1,46 +1,96 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
 import Modal from "../../components/common/Modal";
 import StatCard from "../../components/common/StatCard";
+import { userAPI } from "../../api/api";
+import { useToast } from "../../context/ToastContext";
+import Tooltip from "../../components/common/Tooltip";
+import { Trash2, Edit3, User, Shield, Users } from "lucide-react";
 
-const INITIAL_USERS = [
-  { id: 1, name: "Arjun Mehta",   email: "arjun@college.edu",    role: "Player",     college: "CHARUSAT" },
-  { id: 2, name: "Priya Sharma",  email: "priya@college.edu",    role: "Organizer",  college: "CHARUSAT" },
-  { id: 3, name: "Rahul Shah",    email: "rahul@nirma.edu",      role: "Player",     college: "Nirma" },
-  { id: 4, name: "Dev Trivedi",   email: "dev@nirma.edu",        role: "Player",     college: "Nirma" },
-  { id: 5, name: "Sneha Joshi",   email: "sneha@ddit.ac.in",     role: "Organizer",  college: "DDIT" },
-  { id: 6, name: "Aman Patel",    email: "aman@gtu.ac.in",       role: "Player",     college: "GTU" },
-];
-
-const ROLES = ["Player", "Organizer"];
+const ROLES = ["Player", "Organizer", "SuperAdmin"];
 
 export default function ManageUsers() {
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [editUser, setEditUser] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [newRole, setNewRole] = useState("");
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { showToast } = useToast();
 
-  const updateRole = () => {
-    setUsers(us => us.map(u => u.id === editUser.id ? { ...u, role: newRole } : u));
-    setEditUser(null);
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await userAPI.getAll();
+      setUsers(res.data || []);
+    } catch {
+      showToast("Failed to fetch users.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const updateRole = async () => {
+    try {
+      setUpdating(true);
+      await userAPI.assignRole({
+        userId: editUser.id,
+        role: newRole
+      });
+      showToast(`User ${editUser.name} is now a ${newRole}`, "success");
+      setEditUser(null);
+      fetchUsers();
+    } catch {
+      showToast("Failed to update role.", "error");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const removeUser = async (id) => {
+    try {
+      setDeleting(true);
+      await userAPI.delete(id);
+      showToast("User removed from platform.", "success");
+      setDeleteTarget(null);
+      fetchUsers();
+    } catch {
+      showToast("Failed to delete user.", "error");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const filtered = users.filter(u => {
     const matchRole   = roleFilter === "All" || u.role === roleFilter;
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
-                        u.email.toLowerCase().includes(search.toLowerCase()) ||
-                        u.college.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (u.name || "").toLowerCase().includes(search.toLowerCase()) ||
+                        (u.email || "").toLowerCase().includes(search.toLowerCase()) ||
+                        (u.collegeName || "").toLowerCase().includes(search.toLowerCase());
     return matchRole && matchSearch;
   });
+
+  if (loading) return (
+    <DashboardLayout>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
+        <p>Loading users...</p>
+      </div>
+    </DashboardLayout>
+  );
 
   return (
     <DashboardLayout>
       <div className="page-header">
         <h1 className="page-title">👥 Manage Users</h1>
-        <p className="page-subtitle">Assign and change user roles across all colleges.</p>
+        <p className="page-subtitle">Promote users or remove accounts from the platform.</p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
@@ -49,14 +99,13 @@ export default function ManageUsers() {
         <StatCard icon="🎯" label="Organizers"   value={users.filter(u=>u.role==="Organizer").length}  color="success" delay={200} />
       </div>
 
-      {/* Filters */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14 }}>🔍</span>
-          <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users…" style={{ paddingLeft: 36 }} />
+          <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, email or college…" style={{ paddingLeft: 36 }} />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {["All", "Player", "Organizer"].map(r => (
+          {["All", "Player", "Organizer", "SuperAdmin"].map(r => (
             <button key={r} onClick={() => setRoleFilter(r)} style={{
               padding: "8px 14px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
               border: `1px solid ${roleFilter === r ? "var(--brand-primary)" : "var(--border)"}`,
@@ -75,11 +124,10 @@ export default function ManageUsers() {
           <thead>
             <tr>
               <th>#</th>
-              <th>Name</th>
-              <th>Email</th>
+              <th>User Details</th>
               <th>College</th>
               <th>Role</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -87,27 +135,43 @@ export default function ManageUsers() {
               <tr key={u.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
                 <td style={{ color: "var(--text-muted)", fontWeight: 600 }}>{i + 1}</td>
                 <td>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{
-                      width: 30, height: 30, borderRadius: "50%", background: "var(--brand-gradient)",
+                      width: 36, height: 36, borderRadius: "50%", background: "var(--brand-gradient)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0,
+                      fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0,
                     }}>
-                      {u.name[0]}
+                      {(u.name || "U")[0]}
                     </div>
-                    <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.name}</span>
+                    <div>
+                      <p style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: 14 }}>{u.name}</p>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{u.email}</p>
+                    </div>
                   </div>
                 </td>
-                <td style={{ color: "var(--text-muted)" }}>{u.email}</td>
-                <td>{u.college}</td>
+                <td style={{ fontSize: 13, color: "var(--text-secondary)" }}>{u.collegeName || "N/A"}</td>
                 <td><Badge status={u.role} dot /></td>
                 <td>
-                  <Button
-                    variant="outline" size="sm"
-                    onClick={() => { setEditUser(u); setNewRole(u.role); }}
-                  >
-                    ✏️ Change Role
-                  </Button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Tooltip text="Change User Role">
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={() => { setEditUser(u); setNewRole(u.role); }}
+                        disabled={u.role === "SuperAdmin" && u.email === "admin@techsportia.com"}
+                      >
+                        <Edit3 size={14} />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip text="Delete Account">
+                      <Button
+                        variant="danger" size="sm"
+                        onClick={() => setDeleteTarget(u)}
+                        disabled={u.role === "SuperAdmin" && u.email === "admin@techsportia.com"}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </Tooltip>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -118,65 +182,59 @@ export default function ManageUsers() {
       {filtered.length === 0 && (
         <div style={{ textAlign: "center", padding: "50px", color: "var(--text-muted)" }}>
           <div style={{ fontSize: 40, marginBottom: 10 }}>📭</div>
-          <p>No users found.</p>
+          <p>No users matched your search.</p>
         </div>
       )}
 
       {/* Role change modal */}
-      <Modal
-        open={!!editUser} onClose={() => setEditUser(null)}
-        title={`Change Role — ${editUser?.name}`} size="sm"
+      <Modal open={!!editUser} onClose={() => setEditUser(null)} title="Update Role" size="sm"
         footer={
           <>
             <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
-            <Button variant="primary" onClick={updateRole} disabled={newRole === editUser?.role}>Save</Button>
+            <Button variant="primary" onClick={updateRole} loading={updating} disabled={newRole === editUser?.role}>Apply Change</Button>
           </>
         }
       >
         {editUser && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{
-              background: "var(--bg-elevated)", borderRadius: 10, padding: 14, border: "1px solid var(--border)",
-              display: "flex", gap: 10, alignItems: "center",
-            }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: "50%", background: "var(--brand-gradient)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 16, fontWeight: 700, color: "#fff",
-              }}>
-                {editUser.name[0]}
-              </div>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{editUser.name}</p>
-                <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{editUser.college}</p>
-              </div>
-            </div>
-
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Select New Role</label>
-              <div style={{ display: "flex", gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Select Role for {editUser.name}</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {ROLES.map(r => (
                   <button key={r} onClick={() => setNewRole(r)} style={{
-                    flex: 1, padding: "12px", borderRadius: 10, cursor: "pointer",
+                    flex: "1 0 45%", padding: "12px", borderRadius: 10, cursor: "pointer",
                     border: `2px solid ${newRole === r ? "var(--brand-primary)" : "var(--border)"}`,
                     background: newRole === r ? "var(--brand-primary-light)" : "var(--bg-elevated)",
                     color: newRole === r ? "var(--brand-primary)" : "var(--text-secondary)",
                     fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, transition: "all 0.2s",
                   }}>
-                    {r === "Player" ? "🏃 Player" : "🎯 Organizer"}
+                    {r === "Player" ? "🏃 Player" : r === "Organizer" ? "🎯 Organizer" : "👑 Admin"}
                   </button>
                 ))}
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
 
-            {newRole !== editUser.role && (
-              <div style={{
-                background: "var(--warning-light)", border: "1px solid rgba(245,158,11,0.3)",
-                borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--warning)",
-              }}>
-                ⚠️ This will change {editUser.name}'s role from <strong>{editUser.role}</strong> to <strong>{newRole}</strong>.
-              </div>
-            )}
+      {/* Delete confirmation modal */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirm Removal" size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Keep User</Button>
+            <Button variant="danger" loading={deleting} onClick={() => removeUser(deleteTarget.id)}>Delete Account</Button>
+          </>
+        }
+      >
+        {deleteTarget && (
+          <div style={{ textAlign: "center", padding: "10px 0" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(239, 68, 68, 0.1)", color: "var(--danger)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Trash2 size={30} />
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.7 }}>
+              Are you sure you want to remove <strong style={{ color: "var(--text-primary)" }}>{deleteTarget.name}</strong>?
+              This action will permanently delete their account and history.
+            </p>
           </div>
         )}
       </Modal>

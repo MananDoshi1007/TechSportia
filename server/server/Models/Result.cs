@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace server.Models;
@@ -13,7 +13,11 @@ public partial class Result
 
     public int? TeamId { get; set; }
 
-    public int? Position { get; set; }
+    public int Rank { get; set; }
+
+    public string? AwardName { get; set; }
+
+    public DateTime? PublishedAt { get; set; }
 
     public virtual Sport? Sport { get; set; }
 

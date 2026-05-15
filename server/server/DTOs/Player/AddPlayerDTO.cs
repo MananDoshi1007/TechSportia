@@ -1,9 +1,8 @@
-﻿namespace server.DTOs.Player
+namespace server.DTOs.Player
 {
     public class AddPlayerDTO
     {
-        public int UserId { get; set; }
-        public int TeamId { get; set; }
+        public string? Email { get; set; }
+        public string? TeamName { get; set; }
     }
-
 }

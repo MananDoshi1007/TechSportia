@@ -136,6 +136,44 @@ body {
   border-radius: var(--radius-lg);
 }
 
+/* ── Responsive Utilities ── */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .grid-responsive {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.dashboard-grid-profile {
+  grid-template-columns: 1fr 2.5fr;
+}
+
+.dashboard-grid {
+  grid-template-columns: 1.5fr 1fr;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-grid-profile,
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Animations ── */
 @keyframes fadeInUp {
   from {

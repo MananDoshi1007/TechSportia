@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace server.Models;
@@ -14,6 +14,7 @@ public partial class Team
     public bool? IsApproved { get; set; }
 
     public DateTime? CreatedAt { get; set; }
+    public bool? IsDraft { get; set; }
 
     public virtual ICollection<Result> Results { get; set; } = new List<Result>();
 

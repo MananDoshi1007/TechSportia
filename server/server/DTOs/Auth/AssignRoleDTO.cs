@@ -1,8 +1,8 @@
-﻿namespace server.DTOs.Auth
+namespace server.DTOs.Auth
 {
     public class AssignRoleDTO
     {
         public int UserId { get; set; }
-        public string Role { get; set; } // Admin, Organizer, Player
+        public string? Role { get; set; }
     }
 }

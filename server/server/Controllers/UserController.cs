@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -42,18 +42,22 @@ public class UserController : ControllerBase
         if (!collegeExists)
             return BadRequest("Invalid CollegeId");
 
-        if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
+        var email = dto.Email.ToLower().Trim();
+
+        if (await _context.Users.AnyAsync(u => u.Email == email))
             return BadRequest("Email already exists");
 
         string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
         var user = new User
         {
-            FullName = dto.Name,
-            Email = dto.Email,
+            FullName = dto.FullName,
+            Email = email,
             Password = hashedPassword,
             Role = "Player", // default
             CollegeId = dto.CollegeId,
+            PhoneNumber = dto.PhoneNumber,
+            YearOfStudy = dto.YearOfStudy,
             CreatedAt = DateTime.Now,
             IsActive = true
         };
@@ -69,33 +73,41 @@ public class UserController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginUserDTO dto)
     {
+        var email = dto.Email.ToLower().Trim();
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == dto.Email);
+            .FirstOrDefaultAsync(u => u.Email == email);
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.Password))
+        if (user == null || user.Password == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.Password))
             return Unauthorized("Invalid credentials");
 
         var token = GenerateJwtToken(user);
 
         return Ok(new AuthResponseDTO
         {
+            UserId = user.UserId,
             UserName = user.FullName,
+            Email = user.Email,
             Role = user.Role,
+            CollegeId = user.CollegeId,
             Token = token
         });
     }
 
     // 🔹 GET ALL USERS (Admin only)
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "SuperAdmin")]
     public async Task<IActionResult> GetAll()
     {
         var users = await _context.Users
+            .Include(u => u.College)
             .Select(u => new GetUserDTO
             {
                 Id = u.UserId,
                 Name = u.FullName,
-                Email = u.Email
+                Email = u.Email,
+                Role = u.Role,
+                CollegeId = u.CollegeId,
+                CollegeName = u.College != null ? u.College.Name : "N/A"
             })
             .ToListAsync();
 
@@ -107,21 +119,26 @@ public class UserController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetById(int id)
     {
-        var user = await _context.Users.FindAsync(id);
+        var user = await _context.Users
+            .Include(u => u.College)
+            .FirstOrDefaultAsync(u => u.UserId == id);
+
         if (user == null)
             return NotFound();
-
-        var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var roleFromToken = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (userIdFromToken != id.ToString() && roleFromToken != "Admin")
-            return Forbid("You can only view your own profile");
 
         return Ok(new GetUserDTO
         {
             Id = user.UserId,
             Name = user.FullName,
-            Email = user.Email
+            Email = user.Email,
+            Role = user.Role,
+            CollegeId = user.CollegeId,
+            CollegeName = user.College != null ? user.College.Name : "N/A",
+            PhoneNumber = user.PhoneNumber,
+            Department = user.Department,
+            YearOfStudy = user.YearOfStudy,
+            DateOfBirth = user.DateOfBirth,
+            Gender = user.Gender
         });
     }
 
@@ -139,16 +156,41 @@ public class UserController : ControllerBase
         var roleFromToken = User.FindFirst(ClaimTypes.Role)?.Value;
 
         //  Block if not same user AND not admin
-        if (userIdFromToken != id.ToString() && roleFromToken != "Admin")
+        if (userIdFromToken != id.ToString() && roleFromToken != "SuperAdmin")
             return Forbid("You can only update your own profile");
 
         //  Allowed
-        user.FullName = dto.Name;
-        user.Email = dto.Email;
+        user.FullName = dto.FullName ?? user.FullName;
+        user.Email = dto.Email ?? user.Email;
+        user.PhoneNumber = dto.PhoneNumber ?? user.PhoneNumber;
+        user.Department = dto.Department ?? user.Department;
+        user.YearOfStudy = dto.YearOfStudy ?? user.YearOfStudy;
+        user.DateOfBirth = dto.DateOfBirth ?? user.DateOfBirth;
+        user.Gender = dto.Gender ?? user.Gender;
 
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "User updated successfully" });
+    }
+    
+    // 🔹 CHANGE PASSWORD (Logged-in user)
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDTO dto)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString)) return Unauthorized();
+        
+        var user = await _context.Users.FindAsync(int.Parse(userIdString));
+        if (user == null || user.Password == null) return NotFound();
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.Password))
+            return BadRequest(new { message = "Current password is incorrect" });
+
+        user.Password = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Password changed successfully" });
     }
 
     // 🔹 DELETE USER (Admin only)
@@ -163,8 +205,8 @@ public class UserController : ControllerBase
         var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var roleFromToken = User.FindFirst(ClaimTypes.Role)?.Value;
 
-        if (roleFromToken != "Admin")
-            return Forbid("Only Admin can delete users");
+        if (roleFromToken != "SuperAdmin")
+            return Forbid("Only SuperAdmin can delete users");
 
         _context.Users.Remove(user);
         await _context.SaveChangesAsync();
@@ -174,7 +216,7 @@ public class UserController : ControllerBase
 
     // 🔹 ASSIGN ROLE (Admin only)
     [HttpPost("assign-role")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "SuperAdmin")]
     //[AllowAnonymous]
     public async Task<IActionResult> AssignRole([FromBody] AssignRoleDTO dto)
     {
@@ -190,6 +232,34 @@ public class UserController : ControllerBase
         return Ok(new { message = "Role updated successfully" });
     }
 
+    // 🔹 SEARCH USERS (For Team Invites)
+    [HttpGet("search")]
+    [Authorize]
+    public async Task<IActionResult> SearchUsers([FromQuery] string? query)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString)) return Unauthorized();
+        var currentUserId = int.Parse(userIdString);
+        
+        var user = await _context.Users.FindAsync(currentUserId);
+        if (user == null) return Unauthorized();
+
+        var baseQuery = _context.Users
+            .Where(u => u.CollegeId == user.CollegeId && u.UserId != currentUserId && u.Role == "Player");
+
+        if (!string.IsNullOrEmpty(query))
+        {
+            baseQuery = baseQuery.Where(u => u.FullName.Contains(query) || u.Email.Contains(query));
+        }
+
+        var results = await baseQuery
+            .Take(10)
+            .Select(u => new { u.UserId, Name = u.FullName, u.Email })
+            .ToListAsync();
+
+        return Ok(results);
+    }
+
     // 🔑 JWT TOKEN
     private string GenerateJwtToken(User user)
     {
@@ -202,7 +272,7 @@ public class UserController : ControllerBase
     };
 
         var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_config["Jwt:Key"])
+            Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "super_secret_key_that_is_at_least_32_chars_long")
         );
 
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -211,7 +281,7 @@ public class UserController : ControllerBase
             issuer: _config["Jwt:Issuer"],
             audience: _config["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.Now.AddHours(2),
+            expires: DateTime.Now.AddHours(24),
             signingCredentials: creds
         );
 

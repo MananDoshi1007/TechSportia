@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { LogOut, LogIn, UserPlus } from "lucide-react";
@@ -10,22 +9,23 @@ const GUEST_NAV = [
 ];
 
 const PLAYER_NAV = [
-  { to: "/dashboard",           icon: "⚡", label: "Dashboard"        },
+  { to: "/player-dashboard",    icon: "⚡", label: "Dashboard"        },
   { to: "/events",              icon: "🏆", label: "Browse Events"    },
   { to: "/my-registrations",    icon: "📋", label: "My Registrations" },
+  { to: "/my-teams",            icon: "🛡️", label: "My Team"          },
   { to: "/results",             icon: "🥇", label: "Results"          },
 ];
 
 const ORGANIZER_NAV = [
-  { to: "/dashboard",           icon: "📊", label: "Dashboard"        },
+  { to: "/organizer-dashboard", icon: "📊", label: "Dashboard"        },
   { to: "/my-events",           icon: "🏆", label: "My Events"        },
   { to: "/create-event",        icon: "➕", label: "Create Event"     },
-  { to: "/approve-teams",       icon: "✅", label: "Approve Teams"    },
+  { to: "/approve-participants",  icon: "🛡️", label: "Verification"     },
   { to: "/scoreboard",          icon: "📈", label: "Scoreboard"       },
 ];
 
 const ADMIN_NAV = [
-  { to: "/dashboard",           icon: "🛡️", label: "Dashboard"        },
+  { to: "/admin-dashboard",     icon: "🛡️", label: "Dashboard"        },
   { to: "/admin/colleges",      icon: "🏫", label: "Colleges"         },
   { to: "/admin/users",         icon: "👥", label: "Users"            },
   { to: "/events",              icon: "🏆", label: "All Events"       },

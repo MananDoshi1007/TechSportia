@@ -1,91 +1,140 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { collegeAPI } from "../../api/api";
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import StatCard from "../../components/common/StatCard";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
 import Modal from "../../components/common/Modal";
-import StatCard from "../../components/common/StatCard";
-
-const INITIAL_COLLEGES = [
-  { id: 1, name: "CHARUSAT University",  email: "admin@charusat.ac.in", events: 4, users: 120, status: "Approved" },
-  { id: 2, name: "Nirma University",     email: "admin@nirmauni.ac.in", events: 2, users: 85,  status: "Approved" },
-  { id: 3, name: "DDIT",                email: "admin@ddit.ac.in",     events: 1, users: 40,  status: "Approved" },
-  { id: 4, name: "GTU",                 email: "admin@gtu.ac.in",      events: 0, users: 0,   status: "Pending"  },
-];
+import Input from "../../components/common/Input";
+import { useToast } from "../../context/ToastContext";
+import Tooltip from "../../components/common/Tooltip";
+import { Building, Plus, Trash2, ShieldCheck, ShieldAlert, Mail, Phone, MapPin, User, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function ManageColleges() {
-  const [colleges, setColleges] = useState(INITIAL_COLLEGES);
-  const [search, setSearch] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [colleges, setColleges] = useState([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const { showToast } = useToast();
 
-  const setStatus = (id, status) =>
-    setColleges(cs => cs.map(c => c.id === id ? { ...c, status } : c));
+  const [newCollege, setNewCollege] = useState({
+    name: "",
+    email: "",
+    contactNumber: "",
+    address: "",
+    adminName: "",
+    adminEmail: "",
+    adminPassword: ""
+  });
 
-  const remove = (id) => {
-    setColleges(cs => cs.filter(c => c.id !== id));
-    setDeleteTarget(null);
+  const fetchColleges = useCallback(async () => {
+    try {
+      const res = await collegeAPI.getAll();
+      setColleges(res.data);
+    } catch {
+      showToast("Failed to fetch colleges", "error");
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => fetchColleges(), 0);
+    return () => clearTimeout(timer);
+  }, [fetchColleges]);
+
+  const handleToggleApproval = async (id) => {
+    try {
+      await collegeAPI.toggleApproval(id);
+      showToast("Status updated successfully", "success");
+      fetchColleges();
+    } catch {
+      showToast("Action failed", "error");
+    }
   };
 
-  const filtered = colleges.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure? This will remove all users and events linked to this college.")) return;
+    try {
+      await collegeAPI.delete(id);
+      showToast("College removed successfully", "success");
+      fetchColleges();
+    } catch {
+      showToast("Failed to delete college", "error");
+    }
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      await collegeAPI.create(newCollege);
+      showToast("College & Coordinator created!", "success");
+      setIsCreateModalOpen(false);
+      setNewCollege({ name: "", email: "", contactNumber: "", address: "", adminName: "", adminEmail: "", adminPassword: "" });
+      fetchColleges();
+    } catch {
+      showToast("Failed to create college. Ensure emails are unique.", "error");
+    }
+  };
 
   return (
     <DashboardLayout>
       <div className="page-header">
-        <h1 className="page-title">🏫 Manage Colleges</h1>
-        <p className="page-subtitle">Approve, review and manage college accounts on the platform.</p>
+        <h1 className="page-title">🏢 Manage Colleges</h1>
+        <p className="page-subtitle">Directly register institutions and their coordinators.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
-        <StatCard icon="🏫" label="Total"    value={colleges.length}                              color="primary" delay={0}   />
-        <StatCard icon="✅" label="Approved" value={colleges.filter(c=>c.status==="Approved").length} color="success" delay={100} />
-        <StatCard icon="⏳" label="Pending"  value={colleges.filter(c=>c.status==="Pending").length}  color="warning" delay={200} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 32 }}>
+        <StatCard icon={<Building size={20}/>} label="Total Institutions" value={colleges.length} color="primary" />
+        <StatCard icon={<ShieldCheck size={20}/>} label="Active" value={colleges.filter(c => c.isApproved).length} color="success" />
+        <StatCard icon={<ShieldAlert size={20}/>} label="Suspended" value={colleges.filter(c => !c.isApproved).length} color="warning" />
       </div>
 
-      {/* Search */}
-      <div style={{ position: "relative", maxWidth: 400, marginBottom: 20 }}>
-        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14 }}>🔍</span>
-        <input
-          className="input"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search colleges…"
-          style={{ paddingLeft: 36 }}
-        />
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+        <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>
+          <Plus size={18} style={{ marginRight: 8 }} /> Add New Institution
+        </Button>
       </div>
 
-      <div className="table-wrap">
-        <table>
+      <div className="card-static" style={{ overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
-            <tr>
-              <th>#</th>
-              <th>College Name</th>
-              <th>Email</th>
-              <th>Events</th>
-              <th>Users</th>
-              <th>Status</th>
-              <th>Actions</th>
+            <tr style={{ background: "var(--bg-elevated)", textAlign: "left", color: "var(--text-muted)" }}>
+              <th style={{ padding: "16px 20px" }}>College Details</th>
+              <th style={{ padding: "16px 20px" }}>Contact Info</th>
+              <th style={{ padding: "16px 20px" }}>Status</th>
+              <th style={{ padding: "16px 20px", textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c, i) => (
-              <tr key={c.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-                <td style={{ color: "var(--text-muted)", fontWeight: 600 }}>{i + 1}</td>
-                <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{c.name}</td>
-                <td>{c.email}</td>
-                <td>{c.events}</td>
-                <td>{c.users}</td>
-                <td><Badge status={c.status} dot /></td>
-                <td>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {c.status === "Pending" && (
-                      <Button variant="success" size="sm" onClick={() => setStatus(c.id, "Approved")}>Approve</Button>
-                    )}
-                    {c.status === "Approved" && (
-                      <Button variant="secondary" size="sm" onClick={() => setStatus(c.id, "Pending")}>Suspend</Button>
-                    )}
-                    <Button variant="danger" size="sm" onClick={() => setDeleteTarget(c)}>Delete</Button>
+            {colleges.map((c) => (
+              <tr key={c.collegeId} style={{ borderBottom: "1px solid var(--border)" }}>
+                <td style={{ padding: "16px 20px" }}>
+                  <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{c.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                    <MapPin size={10}/> {c.address || "No address provided"}
+                  </div>
+                </td>
+                <td style={{ padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <Mail size={12}/> {c.email}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Phone size={12}/> {c.contactNumber || "N/A"}
+                  </div>
+                </td>
+                <td style={{ padding: "16px 20px" }}>
+                  <Badge status={c.isApproved ? "Approved" : "Suspended"} dot />
+                </td>
+                <td style={{ padding: "16px 20px", textAlign: "right" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <Tooltip text={c.isApproved ? "Suspend Institution" : "Re-activate Institution"}>
+                      <Button variant={c.isApproved ? "warning" : "success"} size="sm" onClick={() => handleToggleApproval(c.collegeId)}>
+                        {c.isApproved ? <ShieldAlert size={14}/> : <ShieldCheck size={14}/>}
+                      </Button>
+                    </Tooltip>
+                    <Tooltip text="Delete Permanently">
+                      <Button variant="danger" size="sm" onClick={() => handleDelete(c.collegeId)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </Tooltip>
                   </div>
                 </td>
               </tr>
@@ -94,28 +143,53 @@ export default function ManageColleges() {
         </table>
       </div>
 
-      {filtered.length === 0 && (
-        <div style={{ textAlign: "center", padding: "50px", color: "var(--text-muted)" }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>📭</div>
-          <p>No colleges found.</p>
-        </div>
-      )}
-
-      {/* Confirm delete */}
-      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete College" size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="danger" onClick={() => remove(deleteTarget.id)}>Delete</Button>
-          </>
-        }
-      >
-        {deleteTarget && (
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-            Are you sure you want to delete <strong style={{ color: "var(--text-primary)" }}>{deleteTarget.name}</strong>?
-            This will remove all associated data. This action cannot be undone.
-          </p>
-        )}
+      <Modal open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="🏢 Register Institution" size="md">
+        <form onSubmit={handleCreate}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>College Details</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="College Name" value={newCollege.name} onChange={e => setNewCollege({...newCollege, name: e.target.value})} icon={<Building size={14}/>} required />
+                <Input label="Official Email" type="email" value={newCollege.email} onChange={e => setNewCollege({...newCollege, email: e.target.value})} icon={<Mail size={14}/>} required />
+                  <Input label="Contact Number" value={newCollege.contactNumber} onChange={e => {
+                    const val = e.target.value;
+                    if (val === "" || /^\d+$/.test(val)) {
+                      setNewCollege({...newCollege, contactNumber: val});
+                    }
+                  }} icon={<Phone size={14}/>} />
+              </div>
+            </div>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12 }}>Coordinator Details</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Admin Name" value={newCollege.adminName} onChange={e => setNewCollege({...newCollege, adminName: e.target.value})} icon={<User size={14}/>} required />
+                <Input label="Admin Login Email" type="email" value={newCollege.adminEmail} onChange={e => setNewCollege({...newCollege, adminEmail: e.target.value})} icon={<Mail size={14}/>} required />
+                <Input 
+                  label="Initial Password" 
+                  type={showAdminPassword ? "text" : "password"} 
+                  value={newCollege.adminPassword} 
+                  onChange={e => setNewCollege({...newCollege, adminPassword: e.target.value})} 
+                  icon={<Lock size={14}/>} 
+                  required 
+                  iconRight={
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
+                    >
+                      {showAdminPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  }
+                />
+              </div>
+            </div>
+          </div>
+          <Input label="Full Address" value={newCollege.address} onChange={e => setNewCollege({...newCollege, address: e.target.value})} as="textarea" placeholder="Street, City, State, ZIP..." />
+          <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+            <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)} style={{ flex: 1 }}>Cancel</Button>
+            <Button variant="primary" type="submit" style={{ flex: 2 }}>🚀 Register & Create Admin</Button>
+          </div>
+        </form>
       </Modal>
     </DashboardLayout>
   );

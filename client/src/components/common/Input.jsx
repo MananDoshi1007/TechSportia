@@ -8,6 +8,7 @@ export default function Input({
   helper,
   icon,
   iconRight,
+  showAsterisk,
   type = "text",
   className = "",
   children,        // for select options
@@ -19,7 +20,7 @@ export default function Input({
       {label && (
         <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", letterSpacing: "0.01em" }}>
           {label}
-          {rest.required && <span style={{ color: "var(--danger)", marginLeft: 3 }}>*</span>}
+          {showAsterisk && <span style={{ color: "var(--danger)", marginLeft: 3 }}>*</span>}
         </label>
       )}
 

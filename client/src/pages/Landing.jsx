@@ -1,4 +1,6 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import Button from "../components/common/Button";
 
 const FEATURES = [
@@ -18,6 +20,17 @@ const STATS = [
 ];
 
 export default function Landing() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if logged in
+  useEffect(() => {
+    if (user) {
+      if (user.role === "SuperAdmin") navigate("/admin-dashboard");
+      else if (user.role === "Organizer") navigate("/organizer-dashboard");
+      else navigate("/dashboard");
+    }
+  }, [user, navigate]);
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", overflow: "hidden" }}>
 
@@ -41,10 +54,13 @@ export default function Landing() {
             <Link to="/events" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)", textDecoration: "none" }}>Events</Link>
             <Link to="/results" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)", textDecoration: "none" }}>Results</Link>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Link to="/login" className="btn btn-ghost" style={{ color: "var(--text-secondary)" }}>Login</Link>
-            <Link to="/register" className="btn btn-primary">Get Started →</Link>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {user ? (
+            <Link to="/dashboard" className="btn btn-primary">Dashboard</Link>
+          ) : (
+            <Link to="/login" className="btn btn-primary" style={{ padding: "8px 24px" }}>Login</Link>
+          )}
+        </div>
         </div>
       </nav>
 
@@ -82,12 +98,15 @@ export default function Landing() {
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
             <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-              <Link to="/register" className="btn btn-primary btn-lg">
-                🚀 Get Started Free
-              </Link>
-              <Link to="/login" className="btn btn-secondary btn-lg">
-                Sign In →
-              </Link>
+              {user ? (
+                <Link to="/dashboard" className="btn btn-primary btn-lg">
+                  🏠 Go to Dashboard
+                </Link>
+              ) : (
+                <Link to="/login" className="btn btn-primary btn-lg" style={{ padding: "14px 48px" }}>
+                  Sign In to Participate →
+                </Link>
+              )}
             </div>
             <Link 
               to="/events" 
@@ -163,6 +182,39 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── College Contact Section ── */}
+      <section style={{ padding: "0 32px 100px", maxWidth: 900, margin: "0 auto" }}>
+        <div className="card-static" style={{ 
+          padding: 40, border: "2px solid var(--brand-primary-light)", 
+          display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" 
+        }}>
+          <div style={{ flex: 1, minWidth: 300 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", marginBottom: 12 }}>
+              Register Your College 🏫
+            </h2>
+            <p style={{ color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 20 }}>
+              To maintain the highest quality of sports data, college registrations are manually handled by our SuperAdmin. If you want to host events for your institution, please contact our administrative team.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, color: "var(--brand-primary)", fontWeight: 600 }}>
+                📧 admin@techsportia.com
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, color: "var(--text-muted)", fontSize: 13 }}>
+                📞 Support: +91 98765-43210 (10 AM - 6 PM IST)
+              </div>
+            </div>
+          </div>
+          <div style={{
+            background: "var(--bg-elevated)", padding: 24, borderRadius: 20, 
+            textAlign: "center", border: "1px solid var(--border)"
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👨‍💼</div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Global SuperAdmin</p>
+            <p style={{ fontSize: 11, color: "var(--text-muted)" }}>Available for coordination</p>
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA Banner ── */}
       <section style={{ padding: "0 32px 100px", maxWidth: 800, margin: "0 auto" }}>
         <div style={{
@@ -182,7 +234,7 @@ export default function Landing() {
             Join TechSportia and bring your college sports into the digital age.
           </p>
           <Link
-            to="/register"
+            to="/login"
             className="btn"
             style={{
               background: "#fff", color: "var(--brand-primary)", fontWeight: 700,
@@ -190,7 +242,7 @@ export default function Landing() {
               boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
             }}
           >
-            Create Your Account →
+            Access the Platform →
           </Link>
         </div>
       </section>

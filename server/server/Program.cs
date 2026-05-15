@@ -74,14 +74,55 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
 
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(key)
+            Encoding.UTF8.GetBytes(key ?? "TechSportiaDefaultSecretKey123!")
         )
     };
 });
 
 builder.Services.AddAuthorization();
 
+// CORS — allow React client
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactClient", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 var app = builder.Build();
+
+// 🚀 Seed Super Admin
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<TechsportiaDbContext>();
+    var config = services.GetRequiredService<IConfiguration>();
+
+    var adminEmail = config["SuperAdmin:Email"];
+    
+    // Check if SuperAdmin already exists
+    if (!context.Users.Any(u => u.Email == adminEmail || u.Role == "SuperAdmin"))
+    {
+        var admin = new User
+        {
+            FullName = config["SuperAdmin:Name"],
+            Email = adminEmail,
+            Password = BCrypt.Net.BCrypt.HashPassword(config["SuperAdmin:Password"]),
+            Role = "SuperAdmin",
+            CollegeId = null, // Super Admin doesn't belong to a college
+            IsActive = true,
+            CreatedAt = DateTime.Now
+        };
+
+        context.Users.Add(admin);
+        context.SaveChanges();
+        Console.WriteLine("✅ SuperAdmin seeded successfully.");
+    }
+}
 
 //  Swagger UI
 app.UseSwagger();
@@ -92,7 +133,8 @@ app.UseSwaggerUI(c =>
 });
 
 //  Middleware
-app.UseHttpsRedirection();
+app.UseCors("AllowReactClient");
+// app.UseHttpsRedirection(); // Disabled for local dev to prevent header issues
 
 app.UseAuthentication();  //  MUST FIRST
 app.UseAuthorization();

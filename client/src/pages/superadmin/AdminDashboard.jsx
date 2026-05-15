@@ -1,27 +1,63 @@
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import StatCard from "../../components/common/StatCard";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
-
-const MOCK_COLLEGES = [
-  { id: 1, name: "CHARUSAT University",  events: 4, users: 120, status: "Approved" },
-  { id: 2, name: "Nirma University",     events: 2, users: 85,  status: "Approved" },
-  { id: 3, name: "DDIT",                events: 1, users: 40,  status: "Approved" },
-  { id: 4, name: "GTU",                 events: 0, users: 0,   status: "Pending"  },
-];
-
-const ACTIVITY = [
-  { time: "30m ago", msg: "GTU requested platform access",                  icon: "🏫" },
-  { time: "2h ago",  msg: "Priya Sharma promoted to Organizer at CHARUSAT", icon: "⬆️" },
-  { time: "1d ago",  msg: "Nirma University created 'Futsal Fiesta'",       icon: "🏆" },
-  { time: "2d ago",  msg: "New user registration spike: +23 players",       icon: "👥" },
-];
+import { collegeAPI, userAPI, eventAPI } from "../../api/api";
+import { useToast } from "../../context/ToastContext";
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
+
+
+  const [colleges, setColleges] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [globalStats, setGlobalStats] = useState({ totalEvents: 0, totalSports: 0, ongoingEvents: 0 });
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const [collRes, userRes, statsRes] = await Promise.all([
+        collegeAPI.getAll().catch(() => ({ data: [] })),
+        userAPI.getAll().catch(() => ({ data: [] })),
+        eventAPI.getGlobalStats().catch(() => ({ data: { totalEvents: 0, totalSports: 0, ongoingEvents: 0 } }))
+      ]);
+
+      setColleges(collRes.data || []);
+      setUsers(userRes.data || []);
+      setGlobalStats(statsRes.data);
+    } catch {
+      showToast("Could not sync with database.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Calculate Stats
+  const stats = {
+    totalColleges: colleges.length,
+    approvedColleges: colleges.filter(c => c.isApproved === true).length,
+    pendingColleges: colleges.filter(c => c.isApproved === false || c.isApproved === null).length,
+    totalUsers: users.length,
+    totalEvents: globalStats.totalEvents,
+    ongoingEvents: globalStats.ongoingEvents
+  };
+
+  if (loading) return (
+    <DashboardLayout>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
+        <p>Syncing dashboard stats...</p>
+      </div>
+    </DashboardLayout>
+  );
 
   return (
     <DashboardLayout>
@@ -31,45 +67,49 @@ export default function AdminDashboard() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 28 }}>
-        <StatCard icon="🏫" label="Total Colleges" value={MOCK_COLLEGES.length}                        color="primary" delay={0}   />
-        <StatCard icon="✅" label="Approved"        value={MOCK_COLLEGES.filter(c=>c.status==="Approved").length} color="success" delay={100} />
-        <StatCard icon="⏳" label="Pending"         value={MOCK_COLLEGES.filter(c=>c.status==="Pending").length}  color="warning" delay={200} />
-        <StatCard icon="👥" label="Total Users"     value={245}                                        color="accent"  delay={300} />
-        <StatCard icon="🏆" label="Total Events"    value={7}                                          color="primary" delay={400} />
+        <StatCard icon="🏫" label="Total Colleges" value={stats.totalColleges} color="primary" delay={0} />
+        <StatCard icon="✅" label="Approved" value={stats.approvedColleges} color="success" delay={100} />
+        <StatCard icon="⏳" label="Pending" value={stats.pendingColleges} color="warning" delay={200} />
+        <StatCard icon="👥" label="Total Users" value={stats.totalUsers} color="accent" delay={300} />
+        <StatCard icon="🏆" label="Total Events" value={stats.totalEvents} color="primary" delay={400} />
+        <StatCard icon="🔥" label="Ongoing" value={stats.ongoingEvents} color="success" delay={500} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
-        {/* Colleges summary */}
+      <div className="dashboard-grid" style={{ display: "grid", gap: 20 }}>
         <div className="card-static" style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>🏫 Colleges</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>🏫 Recent Colleges</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate("/admin/colleges")}>Manage All →</Button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {MOCK_COLLEGES.map((c, i) => (
-              <div key={c.id} className="animate-fade-in-up" style={{
+            {colleges.slice(0, 4).map((c, i) => (
+              <div key={c.collegeId} className="animate-fade-in-up" style={{
                 background: "var(--bg-elevated)", borderRadius: 10, padding: "12px 14px",
                 border: "1px solid var(--border)", display: "flex", justifyContent: "space-between",
                 alignItems: "center", animationDelay: `${i * 60}ms`,
               }}>
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{c.name}</p>
-                  <p style={{ fontSize: 11, color: "var(--text-muted)" }}>🏆 {c.events} events &nbsp;·&nbsp; 👥 {c.users} users</p>
+                  <p style={{ fontSize: 11, color: "var(--text-muted)" }}>📧 {c.email || "No email"}</p>
                 </div>
-                <Badge status={c.status} dot />
+                <Badge status={c.isApproved ? "Approved" : "Pending"} dot />
               </div>
             ))}
+            {colleges.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", padding: 20 }}>No colleges registered yet.</p>}
           </div>
         </div>
 
-        {/* Activity */}
         <div className="card-static" style={{ padding: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>🔔 Platform Activity</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>🔔 Activity Feed</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {ACTIVITY.map((a, i) => (
+            {[
+              { time: "Just now", msg: "Dashboard synced with SQL Database", icon: "🔗" },
+              { time: "Today", msg: `Identified ${stats.totalUsers} registered users`, icon: "👥" },
+              { time: "Today", msg: `Monitoring ${stats.totalColleges} colleges`, icon: "🏢" },
+            ].map((a, i) => (
               <div key={i} className="animate-fade-in-up" style={{
                 display: "flex", gap: 12, padding: "8px 0",
-                borderBottom: i < ACTIVITY.length - 1 ? "1px solid var(--border)" : "none",
+                borderBottom: i < 2 ? "1px solid var(--border)" : "none",
                 animationDelay: `${i * 60}ms`,
               }}>
                 <div style={{
@@ -89,14 +129,13 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Admin quick actions */}
       <div style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 14 }}>⚡ Admin Actions</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 14 }}>⚡ Quick Management</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           {[
-            { icon: "🏫", label: "Manage Colleges", to: "/admin/colleges" },
-            { icon: "👥", label: "Manage Users",    to: "/admin/users"    },
-            { icon: "🏆", label: "All Events",      to: "/events"         },
+            { icon: "🏫", label: "Colleges", to: "/admin/colleges" },
+            { icon: "👥", label: "Users", to: "/admin/users" },
+            { icon: "🏆", label: "Events", to: "/events" },
           ].map(({ icon, label, to }) => (
             <button
               key={label}

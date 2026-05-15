@@ -1,128 +1,109 @@
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useState, useEffect } from "react";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Badge from "../../components/common/Badge";
-import StatCard from "../../components/common/StatCard";
-import Button from "../../components/common/Button";
-import { LogIn } from "lucide-react";
-
-const MOCK_RESULTS = [
-  { id: 1, event: "Badminton Open",             sport: "Badminton",   type: "Individual", position: 1, score: 95, medal: "🥇" },
-  { id: 2, event: "Annual Sports Meet 2026",    sport: "Table Tennis",type: "Individual", position: 3, score: 72, medal: "🥉" },
-  { id: 3, event: "Summer Athletics",           sport: "100m Sprint", type: "Individual", position: 2, score: 88, medal: "🥈" },
-];
-
-const LEADERBOARD = [
-  { rank: 1, name: "Arjun Mehta",   college: "CHARUSAT", points: 255, medals: "🥇🥈🥉" },
-  { rank: 2, name: "Rahul Shah",    college: "Nirma",    points: 230, medals: "🥇🥈" },
-  { rank: 3, name: "Priya Patel",   college: "DDIT",     points: 210, medals: "🥈🥉🥉" },
-  { rank: 4, name: "Sneha Joshi",   college: "CHARUSAT", points: 190, medals: "🥉🥉" },
-  { rank: 5, name: "Dev Trivedi",   college: "GTU",      points: 170, medals: "🥇" },
-];
+import { eventAPI, resultAPI } from "../../api/api";
+import { Trophy, Award, Medal, Search, Calendar, MapPin } from "lucide-react";
 
 export default function Results() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const [completedEvents, setCompletedEvents] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [results, setResults] = useState([]);
+
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const res = await eventAPI.getAll();
+      setCompletedEvents(res.data.filter(e => e.status === "Completed"));
+    };
+    fetchEvents();
+  }, []);
+
+  const handleSelectEvent = async (ev) => {
+    setSelectedEvent(ev);
+    try {
+      const res = await resultAPI.getByEvent(ev.id);
+      setResults(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <DashboardLayout>
       <div className="page-header">
-        <h1 className="page-title">🥇 Results & Rankings</h1>
-        <p className="page-subtitle">Tournament outcomes and overall leaderboard.</p>
+        <h1 className="page-title">🏆 Hall of Fame</h1>
+        <p className="page-subtitle">Celebrate the winners and view official tournament results.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 28 }}>
-        <StatCard icon="🏅" label="Events Done" value={12} color="primary" delay={0}   />
-        <StatCard icon="🥇" label="Total Gold"  value={42} color="warning" delay={100} />
-        <StatCard icon="🏆" label="Colleges"    value={15} color="accent"  delay={200} />
-        <StatCard icon="👥" label="Athletes"    value="1.2k" color="success" delay={300} />
+      {/* Event Selection Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
+        {completedEvents.map(ev => (
+          <div 
+            key={ev.id} 
+            onClick={() => handleSelectEvent(ev)}
+            style={{ 
+              padding: 24, borderRadius: 20, cursor: "pointer",
+              background: selectedEvent?.id === ev.id ? "var(--brand-gradient)" : "var(--bg-card)",
+              border: selectedEvent?.id === ev.id ? "none" : "1px solid var(--border)",
+              transition: "all 0.3s ease",
+              boxShadow: selectedEvent?.id === ev.id ? "0 10px 30px rgba(124,58,237,0.3)" : "none"
+            }}
+          >
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: selectedEvent?.id === ev.id ? "#fff" : "var(--text-primary)", marginBottom: 8 }}>{ev.name}</h3>
+            <div style={{ fontSize: 12, color: selectedEvent?.id === ev.id ? "rgba(255,255,255,0.8)" : "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+              <MapPin size={12}/> {ev.collegeName}
+            </div>
+          </div>
+        ))}
+        {completedEvents.length === 0 && <p style={{ color: "var(--text-muted)" }}>No completed events available yet.</p>}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        {/* My Results / Guest Prompt */}
-        <div className="card-static" style={{ padding: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>📊 My Performance</h2>
-          
-          {user ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {MOCK_RESULTS.map((r, i) => (
-                <div key={r.id} className="animate-fade-in-up" style={{
-                  background: "var(--bg-elevated)", borderRadius: 12, padding: "14px 16px",
-                  border: "1px solid var(--border)", animationDelay: `${i * 80}ms`,
-                  display: "flex", alignItems: "center", gap: 14,
-                }}>
-                  <div style={{ fontSize: 32, flexShrink: 0 }}>{r.medal}</div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 3 }}>{r.sport}</p>
-                    <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{r.event}</p>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{
-                      fontSize: 18, fontWeight: 800,
-                      background: "var(--brand-gradient)", WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
+      {selectedEvent && (
+        <div className="animate-fade-in">
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", marginBottom: 8 }}>{selectedEvent.name}</h2>
+            <p style={{ color: "var(--brand-primary)", fontWeight: 700 }}>Official Tournament Standings</p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+            {/* Group results by Sport */}
+            {Array.from(new Set(results.map(r => r.sportName))).map(sportName => (
+              <div key={sportName} className="card-static" style={{ padding: 32, position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: -20, right: -20, fontSize: 100, opacity: 0.03 }}>🏆</div>
+                <h3 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", marginBottom: 24, borderBottom: "1px solid var(--border)", paddingBottom: 16 }}>
+                  {sportName}
+                </h3>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+                  {results.filter(r => r.sportName === sportName).sort((a,b) => a.rank - b.rank).map(res => (
+                    <div key={res.resultId} style={{ 
+                      textAlign: "center", padding: 24, borderRadius: 20, 
+                      background: res.rank === 1 ? "var(--brand-gradient-soft)" : "var(--bg-elevated)",
+                      border: res.rank === 1 ? "1px solid var(--brand-primary-light)" : "1px solid var(--border)"
                     }}>
-                      #{r.position}
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>
+                        {res.rank === 1 ? "🥇" : (res.rank === 2 ? "🥈" : "🥉")}
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>
+                        Rank {res.rank}
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>{res.winnerName}</div>
+                      {res.awardName && <div style={{ fontSize: 12, color: "var(--brand-primary)", fontWeight: 700, marginTop: 8 }}>✨ {res.awardName}</div>}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Score: {r.score}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ 
-              textAlign: "center", padding: "40px 20px", 
-              background: "var(--bg-elevated)", borderRadius: 12, border: "1px dashed var(--border)" 
-            }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>Personal Stats Locked</h3>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Sign in to track your medals, rank, and tournament history.</p>
-              <Button variant="primary" size="sm" onClick={() => navigate("/login")}>
-                <LogIn size={14} /> Sign In to View
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Leaderboard */}
-        <div className="card-static" style={{ padding: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>🏆 Overall Leaderboard</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {LEADERBOARD.map((p, i) => (
-              <div key={p.rank} className="animate-fade-in-up" style={{
-                background: p.rank === 1 ? "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.05))"
-                          : p.rank === 2 ? "linear-gradient(135deg,rgba(148,163,184,0.1),rgba(148,163,184,0.05))"
-                          : p.rank === 3 ? "linear-gradient(135deg,rgba(180,120,60,0.1),rgba(180,120,60,0.05))"
-                          : "var(--bg-elevated)",
-                borderRadius: 10, padding: "12px 14px",
-                border: `1px solid ${p.rank <= 3 ? "rgba(245,158,11,0.2)" : "var(--border)"}`,
-                display: "flex", alignItems: "center", gap: 12,
-                animationDelay: `${i * 60}ms`,
-              }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                  background: p.rank === 1 ? "linear-gradient(135deg,#F59E0B,#D97706)"
-                            : p.rank === 2 ? "linear-gradient(135deg,#94A3B8,#64748B)"
-                            : p.rank === 3 ? "linear-gradient(135deg,#B47C3C,#92600A)"
-                            : "var(--bg-card)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 12, fontWeight: 800, color: "#fff",
-                }}>
-                  {p.rank <= 3 ? ["🥇","🥈","🥉"][p.rank-1] : p.rank}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{p.name}</p>
-                  <p style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.college}</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{p.points} pts</div>
-                  <div style={{ fontSize: 12 }}>{p.medals}</div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {!selectedEvent && completedEvents.length > 0 && (
+        <div style={{ textAlign: "center", padding: 100, opacity: 0.5 }}>
+          <Trophy size={64} style={{ marginBottom: 16 }} strokeWidth={1} />
+          <p>Select a completed event above to view its champions.</p>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

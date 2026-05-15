@@ -33,13 +33,16 @@ export default function Toast({ message, type = "info", onClose, duration = 4000
   const config = TOAST_TYPES[type] || TOAST_TYPES.info;
 
   useEffect(() => {
-    setIsVisible(true);
-    const timer = setTimeout(() => {
+    const showTimer = setTimeout(() => setIsVisible(true), 10);
+    const hideTimer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(onClose, 300); // Wait for fade out animation
     }, duration);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
   }, [duration, onClose]);
 
   return (

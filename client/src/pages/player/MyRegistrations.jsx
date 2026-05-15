@@ -1,18 +1,36 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Badge from "../../components/common/Badge";
 import StatCard from "../../components/common/StatCard";
-
-const MOCK_REGS = [
-  { id: 1, event: "Annual Sports Meet 2026",    sport: "Badminton",  type: "Individual", status: "Approved",  date: "2026-04-15" },
-  { id: 2, event: "Inter-College Cricket League", sport: "Cricket",  type: "Team",       status: "Pending",   date: "2026-04-20", teamName: "CHARUSAT Tigers" },
-  { id: 3, event: "Summer Athletics",            sport: "100m Sprint",type: "Individual", status: "Approved",  date: "2026-04-25" },
-  { id: 4, event: "Badminton Open",              sport: "Badminton", type: "Individual", status: "Rejected",  date: "2026-03-05" },
-];
+import { registrationAPI } from "../../api/api";
+import { useToast } from "../../context/ToastContext";
+import Loader from "../../components/common/Loader";
 
 export default function MyRegistrations() {
-  const approved = MOCK_REGS.filter(r => r.status === "Approved").length;
-  const pending  = MOCK_REGS.filter(r => r.status === "Pending").length;
-  const rejected = MOCK_REGS.filter(r => r.status === "Rejected").length;
+  const navigate = useNavigate();
+  const [registrations, setRegistrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const fetchRegs = async () => {
+      try {
+        const res = await registrationAPI.getMyRegistrations();
+        setRegistrations(res.data);
+      } catch {
+        showToast("Failed to load your registrations.", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRegs();
+  }, [showToast]);
+
+  const approved = registrations.filter(r => r.isApproved).length;
+  const pending  = registrations.filter(r => !r.isApproved).length;
+
+  if (loading) return <DashboardLayout><Loader /></DashboardLayout>;
 
   return (
     <DashboardLayout>
@@ -22,10 +40,9 @@ export default function MyRegistrations() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 24 }}>
-        <StatCard icon="📋" label="Total"    value={MOCK_REGS.length} color="primary" delay={0}   />
+        <StatCard icon="📋" label="Total"    value={registrations.length} color="primary" delay={0}   />
         <StatCard icon="✅" label="Approved" value={approved}         color="success" delay={100} />
         <StatCard icon="⏳" label="Pending"  value={pending}          color="warning" delay={200} />
-        <StatCard icon="❌" label="Rejected" value={rejected}         color="danger"  delay={300} />
       </div>
 
       <div className="table-wrap">
@@ -42,22 +59,47 @@ export default function MyRegistrations() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_REGS.map((r, i) => (
-              <tr key={r.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 60}ms` }}>
-                <td style={{ color: "var(--text-muted)", fontWeight: 600 }}>{i + 1}</td>
-                <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{r.sport}</td>
-                <td>{r.event}</td>
-                <td><Badge status={r.type} /></td>
-                <td style={{ color: "var(--text-muted)" }}>{r.teamName || "—"}</td>
-                <td style={{ color: "var(--text-muted)" }}>{new Date(r.date).toLocaleDateString()}</td>
-                <td><Badge status={r.status} dot /></td>
-              </tr>
-            ))}
+            {registrations.map((r, i) => {
+              const isDraft = r.type === "Team" && r.isDraft;
+              const status = isDraft ? "Draft" : (r.isApproved === true ? "Approved" : (r.isApproved === false ? "Rejected" : "Pending"));
+              
+              return (
+                <tr key={i} className="animate-fade-in-up" style={{ animationDelay: `${i * 60}ms` }}>
+                  <td style={{ color: "var(--text-muted)", fontWeight: 600 }}>{i + 1}</td>
+                  <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{r.sportName}</td>
+                  <td>{r.eventName}</td>
+                  <td><Badge status={r.type} /></td>
+                  <td style={{ color: "var(--text-muted)" }}>
+                    {r.teamName ? (
+                      <span 
+                        onClick={() => navigate("/my-teams")} 
+                        style={{ color: "var(--primary)", cursor: "pointer", fontWeight: 600, textDecoration: "underline" }}
+                      >
+                        {r.teamName}
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td style={{ color: "var(--text-muted)" }}>{new Date(r.date).toLocaleDateString()}</td>
+                  <td style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Badge status={status} dot />
+                    {isDraft && (
+                      <button 
+                        onClick={() => navigate(`/register-team/${r.sportId}`)}
+                        className="btn-ghost btn-sm"
+                        style={{ padding: "4px 8px", fontSize: 11 }}
+                      >
+                        Continue →
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {MOCK_REGS.length === 0 && (
+      {registrations.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 24px", color: "var(--text-muted)" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
           <p style={{ fontSize: 15, fontWeight: 600 }}>No registrations yet</p>

@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import Badge from "../common/Badge";
 import Button from "../common/Button";
 
@@ -18,12 +19,12 @@ export default function SportCard({ sport, onRegister, showRegister = false }) {
   } = sport || {};
 
   const isTeam = type === "Team";
-  const regOpen = (() => {
-    const now = Date.now();
+  const [now] = useState(() => Date.now());
+  const regOpen = useMemo(() => {
     const s = registrationStart ? new Date(registrationStart).getTime() : null;
     const e = registrationEnd   ? new Date(registrationEnd).getTime()   : null;
     return (!s || now >= s) && (!e || now <= e);
-  })();
+  }, [registrationStart, registrationEnd, now]);
 
   return (
     <div

@@ -1,24 +1,47 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import StatCard from "../../components/common/StatCard";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
-
-const MOCK_EVENTS = [
-  { id: 1, name: "Annual Sports Meet 2026", status: "RegistrationOpen", startDate: "2026-05-10", sportsCount: 6, collegeName: "CHARUSAT" },
-  { id: 2, name: "Inter-College Cricket League", status: "Ongoing", startDate: "2026-04-20", sportsCount: 1, collegeName: "CHARUSAT" },
-  { id: 3, name: "Summer Athletics Championship", status: "Draft", startDate: "2026-06-01", sportsCount: 4, collegeName: "CHARUSAT" },
-];
-
-const MOCK_REGS = [
-  { id: 1, event: "Annual Sports Meet 2026", sport: "Badminton", type: "Individual", status: "Approved" },
-  { id: 2, event: "Inter-College Cricket League", sport: "Cricket", type: "Team", status: "Pending" },
-];
+import { eventAPI, registrationAPI } from "../../api/api";
+import { useToast } from "../../context/ToastContext";
+import Loader from "../../components/common/Loader";
 
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  
+  const [events, setEvents] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [eventsRes, regsRes] = await Promise.all([
+          eventAPI.getAll(),
+          registrationAPI.getMyRegistrations()
+        ]);
+        // Show only open/ongoing events
+        setEvents((eventsRes.data || []).filter(e => e.status === "RegistrationOpen" || e.status === "Ongoing"));
+        setRegistrations(regsRes.data || []);
+      } catch {
+        showToast("Failed to load dashboard data.", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [showToast]);
+
+  const approved = registrations.filter(r => r.isApproved).length;
+  const pending  = registrations.filter(r => !r.isApproved).length;
+
+  if (loading) return <DashboardLayout><Loader /></DashboardLayout>;
 
   return (
     <DashboardLayout>
@@ -32,21 +55,21 @@ export default function PlayerDashboard() {
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 28 }}>
-        <StatCard icon="📋" label="My Registrations" value="2" color="primary" delay={0} />
-        <StatCard icon="✅" label="Approved"         value="1" color="success" delay={100} />
-        <StatCard icon="⏳" label="Pending Approval" value="1" color="warning" delay={200} />
-        <StatCard icon="🏅" label="Results Available" value="3" color="accent"  delay={300} />
+        <StatCard icon="📋" label="My Registrations" value={registrations.length} color="primary" delay={0} />
+        <StatCard icon="✅" label="Approved"         value={approved}              color="success" delay={100} />
+        <StatCard icon="⏳" label="Pending Approval" value={pending}               color="warning" delay={200} />
+        <StatCard icon="🏆" label="Open Events"      value={events.length}         color="accent"  delay={300} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="grid-2">
         {/* Open Events */}
         <div className="card-static" style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>🏆 Events</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>🏆 Open Events</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate("/events")}>View All →</Button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {MOCK_EVENTS.map((ev) => (
+            {events.slice(0, 4).map((ev) => (
               <div key={ev.id} style={{
                 background: "var(--bg-elevated)", borderRadius: 10, padding: "12px 14px",
                 border: "1px solid var(--border)", display: "flex", justifyContent: "space-between",
@@ -54,11 +77,16 @@ export default function PlayerDashboard() {
               }}>
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 3 }}>{ev.name}</p>
-                  <p style={{ fontSize: 11, color: "var(--text-muted)" }}>📅 {new Date(ev.startDate).toLocaleDateString()} &nbsp;|&nbsp; 🎯 {ev.sportsCount} sports</p>
+                  <p style={{ fontSize: 11, color: "var(--text-muted)" }}>📅 {ev.startDate ? new Date(ev.startDate).toLocaleDateString() : "TBA"} &nbsp;|&nbsp; 🏫 {ev.collegeName}</p>
                 </div>
                 <Badge status={ev.status} dot />
               </div>
             ))}
+            {events.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)" }}>
+                <p style={{ fontSize: 14 }}>No open events right now.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -69,27 +97,32 @@ export default function PlayerDashboard() {
             <Button variant="ghost" size="sm" onClick={() => navigate("/my-registrations")}>View All →</Button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {MOCK_REGS.map((r) => (
-              <div key={r.id} style={{
+            {registrations.slice(0, 4).map((r, i) => (
+              <div key={i} style={{
                 background: "var(--bg-elevated)", borderRadius: 10, padding: "12px 14px",
                 border: "1px solid var(--border)",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{r.sport}</p>
-                    <p style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.event}</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{r.sportName}</p>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.eventName}</p>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                    <Badge status={r.status} dot />
+                    <Badge status={r.isDraft ? "Draft" : (r.isApproved ? "Approved" : "Pending")} dot />
                     <Badge status={r.type} />
                   </div>
                 </div>
               </div>
             ))}
+            {registrations.length === 0 && (
+              <div style={{ textAlign: "center", padding: "30px 0", color: "var(--text-muted)" }}>
+                <p style={{ fontSize: 14 }}>No registrations yet.</p>
+              </div>
+            )}
           </div>
 
           <Button variant="primary" size="sm" onClick={() => navigate("/events")} style={{ marginTop: 14, width: "100%" }}>
-            Browse More Events →
+            Browse Events & Register →
           </Button>
         </div>
       </div>

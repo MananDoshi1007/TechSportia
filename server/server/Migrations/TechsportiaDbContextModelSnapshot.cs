@@ -106,6 +106,10 @@ namespace server.Migrations
 
                     b.HasIndex("CollegeId");
 
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasFilter("[Name] IS NOT NULL");
+
                     b.ToTable("Events");
                 });
 
@@ -118,9 +122,7 @@ namespace server.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("IndividualRegistrationId"));
 
                     b.Property<bool?>("IsApproved")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("RegisteredAt")
                         .ValueGeneratedOnAdd()
@@ -151,7 +153,13 @@ namespace server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ResultId"));
 
-                    b.Property<int?>("Position")
+                    b.Property<string>("AwardName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Rank")
                         .HasColumnType("int");
 
                     b.Property<int?>("SportId")
@@ -183,7 +191,7 @@ namespace server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ScoreId"));
 
-                    b.Property<int?>("Rank")
+                    b.Property<int>("Points")
                         .HasColumnType("int");
 
                     b.Property<int?>("SportId")
@@ -192,11 +200,11 @@ namespace server.Migrations
                     b.Property<int?>("TeamId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("UserId")
                         .HasColumnType("int");
-
-                    b.Property<double?>("Value")
-                        .HasColumnType("float");
 
                     b.HasKey("ScoreId")
                         .HasName("PK__Scores__7DD229D130F848ED");
@@ -218,21 +226,18 @@ namespace server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SportId"));
 
-                    b.Property<string>("AdditionalDetails")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime");
+
                     b.Property<int?>("EventId")
                         .HasColumnType("int");
 
                     b.Property<int?>("MaxPlayers")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MaxSubstitutes")
                         .HasColumnType("int");
 
                     b.Property<int?>("MinPlayers")
@@ -252,6 +257,13 @@ namespace server.Migrations
                     b.Property<string>("Rules")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("StartTime")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("Type")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -260,6 +272,10 @@ namespace server.Migrations
                         .HasName("PK__Sports__7A41AF3C173876EA");
 
                     b.HasIndex("EventId");
+
+                    b.HasIndex("Name", "EventId")
+                        .IsUnique()
+                        .HasFilter("[Name] IS NOT NULL AND [EventId] IS NOT NULL");
 
                     b.ToTable("Sports");
                 });
@@ -278,9 +294,12 @@ namespace server.Migrations
                         .HasDefaultValueSql("(getdate())");
 
                     b.Property<bool?>("IsApproved")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("IsDraft")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasDefaultValue(true);
 
                     b.Property<int?>("SportId")
                         .HasColumnType("int");
@@ -308,6 +327,9 @@ namespace server.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int?>("SportId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("TeamId")
                         .HasColumnType("int");
 
@@ -316,6 +338,8 @@ namespace server.Migrations
 
                     b.HasKey("TeamMemberId")
                         .HasName("PK__TeamMemb__C7C092E5239E4DCF");
+
+                    b.HasIndex("SportId");
 
                     b.HasIndex("TeamId");
 
@@ -340,6 +364,12 @@ namespace server.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
+                    b.Property<DateTime?>("DateOfBirth")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Department")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(255)
                         .IsUnicode(false)
@@ -349,6 +379,9 @@ namespace server.Migrations
                         .HasMaxLength(100)
                         .IsUnicode(false)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Gender")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool?>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -360,9 +393,15 @@ namespace server.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Role")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("YearOfStudy")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("UserId")
                         .HasName("PK__Users__1788CC4C07F6335A");
@@ -473,6 +512,10 @@ namespace server.Migrations
 
             modelBuilder.Entity("server.Models.TeamMember", b =>
                 {
+                    b.HasOne("server.Models.Sport", null)
+                        .WithMany("TeamMembers")
+                        .HasForeignKey("SportId");
+
                     b.HasOne("server.Models.Team", "Team")
                         .WithMany("TeamMembers")
                         .HasForeignKey("TeamId")
@@ -517,6 +560,8 @@ namespace server.Migrations
                     b.Navigation("Results");
 
                     b.Navigation("Scores");
+
+                    b.Navigation("TeamMembers");
 
                     b.Navigation("Teams");
                 });

@@ -7,7 +7,6 @@ import Button from "../common/Button";
  */
 export default function EventCard({ event, onView, onRegister, showActions = true }) {
   const {
-    id,
     name = "Unnamed Event",
     collegeName = "—",
     status = "Draft",

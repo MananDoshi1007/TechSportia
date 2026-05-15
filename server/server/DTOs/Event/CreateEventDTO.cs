@@ -1,10 +1,14 @@
-﻿namespace server.DTOs.Event
+using System;
+
+namespace server.DTOs.Event
 {
     public class CreateEventDTO
     {
-        public string EventName { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public string Location { get; set; }
+        public string? Location { get; set; }
+        public int? MaxSports { get; set; }
     }
 }

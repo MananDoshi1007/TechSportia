@@ -1,54 +1,86 @@
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import StatCard from "../../components/common/StatCard";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
-
-const MOCK_EVENTS = [
-  { id: 1, name: "Annual Sports Meet 2026", status: "RegistrationOpen", startDate: "2026-05-10", sportsCount: 6, teamsCount: 12, pendingTeams: 3 },
-  { id: 2, name: "Inter-College Cricket League", status: "Ongoing", startDate: "2026-04-20", sportsCount: 1, teamsCount: 8, pendingTeams: 0 },
-  { id: 3, name: "Summer Athletics Championship", status: "Draft", startDate: "2026-06-01", sportsCount: 4, teamsCount: 0, pendingTeams: 0 },
-];
-
-const ACTIVITY = [
-  { time: "2h ago",  msg: "Team 'CHARUSAT Tigers' applied for Cricket",   icon: "👥" },
-  { time: "5h ago",  msg: "Arjun Mehta registered for Badminton",          icon: "🏸" },
-  { time: "1d ago",  msg: "Score updated for Cricket Semi-Final",          icon: "📊" },
-  { time: "2d ago",  msg: "Annual Sports Meet moved to Registration Open", icon: "🟢" },
-];
+import { eventAPI } from "../../api/api";
+import { useToast } from "../../context/ToastContext";
+import { Trophy, Activity, Users, Clock, Plus, Bell } from "lucide-react";
 
 export default function OrganizerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  
+  const [events, setEvents] = useState([]);
+  const [stats, setStats] = useState({ totalEvents: 0, activeEvents: 0, totalParticipants: 0, pendingApprovals: 0 });
+  const [loading, setLoading] = useState(true);
+
+  const fetchDashboardData = useCallback(async () => {
+    if (!user?.collegeId) return;
+    try {
+      setLoading(true);
+      const [eventsRes, statsRes] = await Promise.all([
+        eventAPI.getByCollege(user.collegeId),
+        eventAPI.getOrganizerStats()
+      ]);
+      setEvents(eventsRes.data || []);
+      setStats({
+        totalEvents: statsRes.data.totalEvents,
+        activeEvents: statsRes.data.activeEvents,
+        totalParticipants: statsRes.data.totalParticipants,
+        pendingApprovals: statsRes.data.pendingApprovals
+      });
+    } catch {
+      showToast("Failed to fetch dashboard data.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.collegeId, showToast]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  if (loading) return (
+    <DashboardLayout>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
+        <p>Syncing organizer stats...</p>
+      </div>
+    </DashboardLayout>
+  );
 
   return (
     <DashboardLayout>
       <div className="page-header">
         <h1 className="page-title">Welcome, {user?.name?.split(" ")[0]} 👋</h1>
-        <p className="page-subtitle">Manage your college sports events from here.</p>
+        <p className="page-subtitle">Manage {user?.collegeName || "your college"} sports events from here.</p>
       </div>
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 28 }}>
-        <StatCard icon="🏆" label="Total Events"    value={MOCK_EVENTS.length}  color="primary" delay={0}   />
-        <StatCard icon="🟢" label="Active Events"   value={2}                   color="success" delay={100} />
-        <StatCard icon="👥" label="Total Teams"     value={20}                  color="accent"  delay={200} />
-        <StatCard icon="⏳" label="Pending Approvals" value={3}                 color="warning" delay={300} />
+        <StatCard icon={<Trophy size={20}/>} label="My Events"    value={stats.totalEvents}  color="primary" delay={0}   />
+        <StatCard icon={<Activity size={20}/>} label="Live/Open"   value={stats.activeEvents} color="success" delay={100} />
+        <StatCard icon={<Users size={20}/>} label="Participants"     value={stats.totalParticipants}                  color="accent"  delay={200} />
+        <StatCard icon={<Clock size={20}/>} label="Pending Reqs" value={stats.pendingApprovals}                 color="warning" delay={300} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
-        {/* My Events */}
+      <div className="dashboard-grid" style={{ display: "grid", gap: 20 }}>
+        {/* My Events Summary */}
         <div className="card-static" style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>🏆 My Events</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>🏆 Recent Events</h2>
             <div style={{ display: "flex", gap: 8 }}>
               <Button variant="ghost" size="sm" onClick={() => navigate("/my-events")}>View All</Button>
-              <Button variant="primary" size="sm" onClick={() => navigate("/create-event")}>+ Create</Button>
+              <Button variant="primary" size="sm" onClick={() => navigate("/create-event")}>
+                <Plus size={14} style={{ marginRight: 4 }} /> Create New
+              </Button>
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {MOCK_EVENTS.map((ev, i) => (
+            {events.slice(0, 4).map((ev, i) => (
               <div key={ev.id} className="animate-fade-in-up" style={{
                 background: "var(--bg-elevated)", borderRadius: 12, padding: "14px 16px",
                 border: "1px solid var(--border)", animationDelay: `${i * 60}ms`,
@@ -58,32 +90,38 @@ export default function OrganizerDashboard() {
                   <Badge status={ev.status} dot />
                 </div>
                 <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
-                  <span>📅 {new Date(ev.startDate).toLocaleDateString()}</span>
-                  <span>🎯 {ev.sportsCount} sports</span>
-                  <span>👥 {ev.teamsCount} teams</span>
-                  {ev.pendingTeams > 0 && (
-                    <span style={{ color: "var(--warning)", fontWeight: 600 }}>⏳ {ev.pendingTeams} pending</span>
-                  )}
+                  <span>📅 {ev.startDate ? new Date(ev.startDate).toLocaleDateString() : "TBA"}</span>
+                  <span>📍 {ev.location || "On Campus"}</span>
                 </div>
               </div>
             ))}
+            {events.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)" }}>
+                <p style={{ fontSize: 14 }}>No events created yet.</p>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/create-event")} style={{ marginTop: 12 }}>Create your first event</Button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Activity Feed */}
         <div className="card-static" style={{ padding: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>🔔 Recent Activity</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>🔔 Platform Updates</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {ACTIVITY.map((a, i) => (
+            {[
+              { time: "Just now", msg: "Dashboard connected to SQL Server", icon: <Activity size={14}/> },
+              { time: "Today", msg: `Synced ${events.length} events for ${user?.collegeName}`, icon: <Trophy size={14}/> },
+            ].map((a, i) => (
               <div key={i} className="animate-fade-in-up" style={{
                 display: "flex", gap: 12, padding: "10px 0",
-                borderBottom: i < ACTIVITY.length - 1 ? "1px solid var(--border)" : "none",
+                borderBottom: i < 1 ? "1px solid var(--border)" : "none",
                 animationDelay: `${i * 60}ms`,
               }}>
                 <div style={{
                   width: 34, height: 34, borderRadius: 10, flexShrink: 0,
                   background: "var(--bg-elevated)", border: "1px solid var(--border)",
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+                  color: "var(--brand-primary)"
                 }}>
                   {a.icon}
                 </div>
@@ -99,12 +137,12 @@ export default function OrganizerDashboard() {
 
       {/* Quick actions */}
       <div style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 14 }}>⚡ Quick Actions</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 14 }}>⚡ Management Tools</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           {[
             { icon: "➕", label: "Create Event",   to: "/create-event"   },
             { icon: "📋", label: "Manage Events",  to: "/my-events"      },
-            { icon: "✅", label: "Approve Teams",  to: "/approve-teams"  },
+            { icon: "✅", label: "Verification",   to: "/approve-participants"  },
             { icon: "📈", label: "Scoreboard",     to: "/scoreboard"     },
           ].map(({ icon, label, to }) => (
             <button

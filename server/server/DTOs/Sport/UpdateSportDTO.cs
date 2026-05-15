@@ -1,7 +1,13 @@
-﻿namespace server.DTOs.Sport
+namespace server.DTOs.Sport
 {
     public class UpdateSportDTO
     {
-        public string SportName { get; set; }
+        public string? Name { get; set; }
+        public int? MaxPlayers { get; set; }
+        public int? MinPlayers { get; set; }
+        public string? Rules { get; set; }
+        public string? StartTime { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
     }
 }

@@ -1,16 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
-
-const DEMOS = [
-  { label: "🏃 Player",     email: "player@college.edu"   },
-  { label: "🎯 Organizer",  email: "priya@college.edu"    },
-  { label: "🛡️ SuperAdmin", email: "admin@techsportia.com" },
-];
 
 const FEATURES = [
   "Event lifecycle management",
@@ -20,22 +14,66 @@ const FEATURES = [
 ];
 
 export default function Login() {
-  const { login, loading } = useAuth();
+  const { user, login, loading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [form, setForm]     = useState({ email: "", password: "" });
+
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, navigate]);
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handle = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    // Clear field error on typing
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: "" });
+    }
+    if (serverError) setServerError("");
+  };
+
+  // ── Client-side validation ──
+  const validate = () => {
+    const e = {};
+
+    if (!form.email.trim()) {
+      e.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      e.email = "Please enter a valid email address";
+    }
+
+    if (!form.password) {
+      e.password = "Password is required";
+    } else if (form.password.length < 6) {
+      e.password = "Password must be at least 6 characters";
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const submit = async (e) => {
     e.preventDefault();
-    try {
-      await login(form.email, form.password);
+    setServerError("");
+
+    if (!validate()) {
+      showToast("Please fix the errors in the form.", "warning");
+      return;
+    }
+
+    const result = await login(form.email, form.password);
+
+    if (result.success) {
       showToast("Welcome back! Login successful.", "success");
       navigate("/dashboard");
-    } catch {
-      showToast("Invalid credentials. Please try again.", "error");
+    } else {
+      setServerError(result.message);
+      showToast(result.message, "error");
     }
   };
 
@@ -119,45 +157,36 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Demo pills */}
-          <div style={{
-            marginBottom:24, padding:14,
-            background:"var(--bg-elevated)", borderRadius:12,
-            border:"1px solid var(--border)",
-          }}>
-            <p style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)",
-              letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:8 }}>
-              🎮 Quick Demo Login
-            </p>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {DEMOS.map(({ label, email }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setForm({ email, password:"demo1234" })}
-                  style={{
-                    background:"var(--bg-card)", border:"1px solid var(--border)",
-                    borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:600,
-                    cursor:"pointer", color:"var(--text-secondary)", transition:"all 0.2s",
-                    fontFamily:"Inter, sans-serif",
-                  }}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--brand-primary)";e.currentTarget.style.color="var(--text-primary)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text-secondary)";}}
-                >
-                  {label}
-                </button>
-              ))}
+          {/* Server error banner */}
+          {serverError && (
+            <div style={{
+              marginBottom: 20,
+              padding: "12px 16px",
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.25)",
+              borderRadius: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontSize: 13,
+              color: "var(--danger)",
+              animation: "fadeInUp 0.3s ease",
+            }}>
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span>{serverError}</span>
             </div>
-          </div>
+          )}
 
           {/* Form */}
           <form onSubmit={submit} style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <Input
               label="Email Address"
-              name="email" type="email"
+              name="email" type="text"
               value={form.email} onChange={handle}
               placeholder="you@college.edu"
-              icon={<Mail size={18} />} required
+              icon={<Mail size={18} />}
+              error={errors.email}
+              showAsterisk={true}
             />
 
             <Input
@@ -167,6 +196,7 @@ export default function Login() {
               value={form.password} onChange={handle}
               placeholder="••••••••"
               icon={<Lock size={18} />}
+              error={errors.password}
               iconRight={
                 <button
                   type="button"
@@ -189,10 +219,8 @@ export default function Login() {
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               }
-              required
+              showAsterisk={true}
             />
-
-            {/* Errors are now handled by Toast */}
 
             <Button type="submit" variant="primary" size="lg" loading={loading} style={{ marginTop:4 }}>
               Sign In
